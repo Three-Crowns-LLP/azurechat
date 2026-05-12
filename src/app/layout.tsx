@@ -1,5 +1,4 @@
 import { AI_NAME } from "@/features/theme/theme-config";
-import { ThemeProvider } from "@/features/theme/theme-provider";
 import { Toaster } from "@/features/ui/toaster";
 import { cn } from "@/ui/lib";
 import { Inter } from "next/font/google";
@@ -24,15 +23,8 @@ export default function RootLayout({
       <body
         className={cn(inter.className, "h-full w-full flex  bg-background")}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster />
-        </ThemeProvider>
+        {children}
+        <Toaster />
       </body>
     </html>
   );
