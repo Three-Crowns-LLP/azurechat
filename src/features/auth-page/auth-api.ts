@@ -134,6 +134,29 @@ export const options: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   providers: [...configureIdentityProvider()],
   callbacks: {
+    // EU-Only-LLM tier: restrict Azure AD sign-in to members of a single
+    // Entra security group. The App Registration must also be configured
+    // to emit the `groups` claim (Token configuration -> Add groups claim
+    // -> Security groups -> Group ID) and to require assignment in the
+    // Enterprise application. See Three-Crowns-LLP/EU-Only-LLM-New
+    // app/FORK_CHANGES.md.
+    async signIn({ account, profile }) {
+      if (account?.provider !== "azure-ad") {
+        return true;
+      }
+      const allowedGroupId = process.env.AZURE_AD_ALLOWED_GROUP_ID;
+      if (!allowedGroupId) {
+        console.error(
+          "AZURE_AD_ALLOWED_GROUP_ID not configured; denying Azure AD sign-in."
+        );
+        return false;
+      }
+      const groups = (profile as { groups?: string[] } | undefined)?.groups;
+      if (!Array.isArray(groups) || !groups.includes(allowedGroupId)) {
+        return false;
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user?.isAdmin) {
         token.isAdmin = user.isAdmin;
