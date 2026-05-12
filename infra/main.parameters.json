@@ -9,6 +9,12 @@
       "value": "${AZURE_LOCATION}"
     },
     "openAILocation": {},
-    "dalleLocation": {}
+    "dalleLocation": {},
+    "disableLocalAuth": {
+      "value": true
+    },
+    "usePrivateEndpoints": {
+      "value": true
+    }
   }
 }
