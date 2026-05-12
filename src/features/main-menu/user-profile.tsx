@@ -12,7 +12,6 @@ import { menuIconProps } from "@/ui/menu";
 import { CircleUserRound, LogOut } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { Avatar, AvatarImage } from "../ui/avatar";
-import { ThemeToggle } from "./theme-toggle";
 
 export const UserProfile = () => {
   const { data: session } = useSession();
@@ -43,13 +42,6 @@ export const UserProfile = () => {
             <p className="text-xs leading-none text-muted-foreground">
               {session?.user?.isAdmin ? "Admin" : ""}
             </p>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium leading-none">Switch themes</p>
-            <ThemeToggle />
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
