@@ -16,11 +16,13 @@ import { ResetInputRows } from "./chat-input/use-chat-input-dynamic-height";
 import {
   AddExtensionToChatThread,
   RemoveExtensionFromChatThread,
+  UpdateChatThreadModel,
   UpdateChatTitle,
 } from "./chat-services/chat-thread-service";
 import {
   AzureChatCompletion,
   ChatMessageModel,
+  ChatModelId,
   ChatThreadModel,
 } from "./chat-services/models";
 let abortController: AbortController = new AbortController();
@@ -35,6 +37,7 @@ class ChatState {
   public autoScroll: boolean = false;
   public userName: string = "";
   public chatThreadId: string = "";
+  public currentModel: ChatModelId | undefined = undefined;
 
   private chatThread: ChatThreadModel | undefined;
 
@@ -69,8 +72,24 @@ class ChatState {
   }) {
     this.chatThread = chatThread;
     this.chatThreadId = chatThread.id;
+    this.currentModel = chatThread.model;
     this.messages = messages;
     this.userName = userName;
+  }
+
+  public async updateModel(model: ChatModelId) {
+    const previous = this.currentModel;
+    this.currentModel = model;
+
+    const response = await UpdateChatThreadModel({
+      chatThreadId: this.chatThreadId,
+      model,
+    });
+
+    if (response.status !== "OK") {
+      this.currentModel = previous;
+      showError(response.errors[0].message);
+    }
   }
 
   public async AddExtensionToChatThread(extensionId: string) {

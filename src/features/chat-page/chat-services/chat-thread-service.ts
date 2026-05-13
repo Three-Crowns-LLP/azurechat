@@ -18,9 +18,11 @@ import { HistoryContainer } from "../../common/services/cosmos";
 import { DeleteDocuments } from "./azure-ai-search/azure-ai-search";
 import { FindAllChatDocuments } from "./chat-document-service";
 import { FindAllChatMessagesForCurrentUser } from "./chat-message-service";
+import { defaultModel, isModelEnabled } from "./model-registry";
 import {
   CHAT_THREAD_ATTRIBUTE,
   ChatDocumentModel,
+  ChatModelId,
   ChatThreadModel,
 } from "./models";
 
@@ -237,6 +239,25 @@ export const RemoveExtensionFromChatThread = async (props: {
   return response;
 };
 
+export const UpdateChatThreadModel = async (props: {
+  chatThreadId: string;
+  model: ChatModelId;
+}): Promise<ServerActionResponse<ChatThreadModel>> => {
+  if (!isModelEnabled(props.model)) {
+    return {
+      status: "ERROR",
+      errors: [{ message: `Model ${props.model} is not enabled.` }],
+    };
+  }
+
+  const response = await FindChatThreadForCurrentUser(props.chatThreadId);
+  if (response.status !== "OK") return response;
+
+  const chatThread = response.response;
+  chatThread.model = props.model;
+  return UpsertChatThread(chatThread);
+};
+
 export const UpsertChatThread = async (
   chatThread: ChatThreadModel
 ): Promise<ServerActionResponse<ChatThreadModel>> => {
@@ -289,6 +310,7 @@ export const CreateChatThread = async (): Promise<
       personaMessage: "",
       personaMessageTitle: CHAT_DEFAULT_PERSONA,
       extension: [],
+      model: defaultModel(),
     };
 
     const { resource } = await HistoryContainer().items.create<ChatThreadModel>(

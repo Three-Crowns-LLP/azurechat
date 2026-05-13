@@ -10,7 +10,6 @@ import {
   Book,
   Home,
   MessageCircle,
-  PocketKnife,
   Sheet,
   VenetianMask,
 } from "lucide-react";
@@ -41,11 +40,6 @@ export const MainMenu = async () => {
           <MenuItem tooltip="Persona">
             <MenuLink href="/persona" ariaLabel="Go to the Persona configuration page">
               <VenetianMask {...menuIconProps} />
-            </MenuLink>
-          </MenuItem>
-          <MenuItem tooltip="extensions">
-            <MenuLink href="/extensions" ariaLabel="Go to the Extensions configuration page">
-              <PocketKnife {...menuIconProps} />
             </MenuLink>
           </MenuItem>
           <MenuItem tooltip="prompts">

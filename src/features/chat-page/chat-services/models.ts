@@ -21,6 +21,8 @@ export interface ChatMessageModel {
 
 export type ChatRole = "system" | "user" | "assistant" | "function" | "tool";
 
+export type ChatModelId = "gpt-5.4" | "claude-opus-4-6";
+
 export interface ChatThreadModel {
   id: string;
   name: string;
@@ -33,6 +35,7 @@ export interface ChatThreadModel {
   personaMessage: string;
   personaMessageTitle: string;
   extension: string[];
+  model?: ChatModelId;
   type: typeof CHAT_THREAD_ATTRIBUTE;
 }
 

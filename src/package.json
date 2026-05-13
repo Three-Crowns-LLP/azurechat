@@ -10,6 +10,7 @@
     "debug": "set NODE_OPTIONS=--inspect && next dev"
   },
   "dependencies": {
+    "applicationinsights": "^2.9.5",
     "@azure/ai-form-recognizer": "^5.0.0",
     "@azure/cosmos": "^4.0.0",
     "@azure/identity": "^4.4.1",
