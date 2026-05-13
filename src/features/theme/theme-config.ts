@@ -1,5 +1,5 @@
 export const AI_NAME = "Three Crowns AI";
-export const AI_DESCRIPTION = "Three Crowns AI is a friendly AI assistant.";
+export const AI_DESCRIPTION = "Three Crowns LLP — EU-resident matters only";
 export const CHAT_DEFAULT_PERSONA = AI_NAME + " default";
 
 export const CHAT_DEFAULT_SYSTEM_PROMPT = `You are a friendly ${AI_NAME} AI assistant. You must always return in markdown format.
