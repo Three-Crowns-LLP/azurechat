@@ -11,8 +11,10 @@ import {
   FindTopChatMessagesForCurrentUser,
 } from "../chat-message-service";
 import { EnsureChatThreadOperation } from "../chat-thread-service";
+import { defaultModel, isModelEnabled } from "../model-registry";
 import { ChatThreadModel, UserPrompt } from "../models";
 import { mapOpenAIChatMessages } from "../utils";
+import { AnthropicChatApi } from "./anthropic-chat";
 import { GetDefaultExtensions } from "./chat-api-default-extensions";
 import { GetDynamicExtensions } from "./chat-api-dynamic-extensions";
 import { ChatApiExtensions } from "./chat-api-extension";
@@ -28,6 +30,14 @@ export const ChatAPIEntry = async (props: UserPrompt, signal: AbortSignal) => {
   }
 
   const currentChatThread = currentChatThreadResponse.response;
+
+  const selectedModel = currentChatThread.model ?? defaultModel();
+  if (!selectedModel || !isModelEnabled(selectedModel)) {
+    return new Response(
+      `Model ${selectedModel ?? "(none)"} is not enabled.`,
+      { status: 400 }
+    );
+  }
 
   // promise all to get user, history and docs
   const [user, history, docs, extension] = await Promise.all([
@@ -65,37 +75,50 @@ export const ChatAPIEntry = async (props: UserPrompt, signal: AbortSignal) => {
 
   let runner: ChatCompletionStreamingRunner;
 
-  switch (chatType) {
-    case "chat-with-file":
-      runner = await ChatApiRAG({
-        chatThread: currentChatThread,
-        userMessage: props.message,
-        history: history,
-        signal: signal,
-      });
-      break;
-    case "multimodal":
-      runner = ChatApiMultimodal({
-        chatThread: currentChatThread,
-        userMessage: props.message,
-        file: props.multimodalImage,
-        signal: signal,
-      });
-      break;
-    case "extensions":
-      runner = await ChatApiExtensions({
-        chatThread: currentChatThread,
-        userMessage: props.message,
-        history: history,
-        extensions: extension,
-        signal: signal,
-      });
-      break;
+  if (selectedModel === "claude-opus-4-6") {
+    // Foundry serverless endpoint: OpenAI-compatible surface, no tools.
+    // RAG / multimodal / extension paths stay on GPT for now — surface that
+    // by short-circuiting to the plain chat path here.
+    runner = AnthropicChatApi({
+      chatThread: currentChatThread,
+      userMessage: props.message,
+      history: history,
+      signal: signal,
+    });
+  } else {
+    switch (chatType) {
+      case "chat-with-file":
+        runner = await ChatApiRAG({
+          chatThread: currentChatThread,
+          userMessage: props.message,
+          history: history,
+          signal: signal,
+        });
+        break;
+      case "multimodal":
+        runner = ChatApiMultimodal({
+          chatThread: currentChatThread,
+          userMessage: props.message,
+          file: props.multimodalImage,
+          signal: signal,
+        });
+        break;
+      case "extensions":
+        runner = await ChatApiExtensions({
+          chatThread: currentChatThread,
+          userMessage: props.message,
+          history: history,
+          extensions: extension,
+          signal: signal,
+        });
+        break;
+    }
   }
 
   const readableStream = OpenAIStream({
-    runner: runner,
+    runner: runner!,
     chatThread: currentChatThread,
+    modelLabel: selectedModel,
   });
 
   return new Response(readableStream, {

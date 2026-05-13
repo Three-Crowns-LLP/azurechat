@@ -22,6 +22,7 @@ import { SubmitChat } from "@/features/ui/chat/chat-input-area/submit-chat";
 import React, { useRef } from "react";
 import { chatStore, useChat } from "../chat-store";
 import { fileStore, useFileStore } from "./file/file-store";
+import { ModelSelector } from "./model-selector";
 import { PromptSlider } from "./prompt/prompt-slider";
 import {
   speechToTextStore,
@@ -83,6 +84,7 @@ export const ChatInput = () => {
             }
           />
           <PromptSlider />
+          <ModelSelector />
         </ChatInputSecondaryActionArea>
         <ChatInputPrimaryActionArea>
           <ImageInput />
