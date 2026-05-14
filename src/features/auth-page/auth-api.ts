@@ -4,8 +4,6 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GitHubProvider from "next-auth/providers/github";
 import { Provider } from "next-auth/providers/index";
 import { hashValue } from "./helpers";
-import { image } from "@markdoc/markdoc/dist/src/schema";
-import { access } from "fs";
 
 const configureIdentityProvider = () => {
   const providers: Array<Provider> = [];
@@ -21,13 +19,11 @@ const configureIdentityProvider = () => {
         clientSecret: process.env.AUTH_GITHUB_SECRET!,
         async profile(profile) {
           const image = await fetchProfilePicture(profile.avatar_url, null);
-          const newProfile = {
+          return {
             ...profile,
             isAdmin: adminEmails?.includes(profile.email.toLowerCase()),
             image: image,
           };
-          console.log("GitHub profile:", newProfile);
-          return newProfile;
         },
       })
     );
@@ -51,7 +47,7 @@ const configureIdentityProvider = () => {
         async profile(profile, tokens) {
           const email = profile.email || profile.preferred_username || "";
           const image = await fetchProfilePicture(`https://graph.microsoft.com/v1.0/me/photos/48x48/$value`, tokens.access_token);
-          const newProfile = {
+          return {
             ...profile,
             email,
             id: profile.sub,
@@ -60,8 +56,6 @@ const configureIdentityProvider = () => {
               adminEmails?.includes(profile.preferred_username?.toLowerCase()),
             image: image,
           };
-          console.log("Azure AD profile:", newProfile);
-          return newProfile;
         },
       })
     );
@@ -85,19 +79,13 @@ const configureIdentityProvider = () => {
           // Create the id as the hash of the email as per userHashedId (helpers.ts)
           const username = credentials?.username || "dev";
           const email = username + "@localhost";
-          const user = {
+          return {
             id: hashValue(email),
             name: username,
             email: email,
             isAdmin: adminEmails?.includes(email),
             image: "",
           };
-          console.log(
-            "=== DEV USER LOGGED IN:\n",
-            JSON.stringify(user, null, 2,
-            )
-          );
-          return user;
         },
       })
     );
@@ -107,8 +95,7 @@ const configureIdentityProvider = () => {
 };
 
 export const fetchProfilePicture = async (profilePictureUrl: string, accessToken: any): Promise<any> => {
-  console.log("Fetching profile picture...");
-  var image = null
+  let image = null;
   const profilePicture = await fetch(
     profilePictureUrl,
     accessToken && {
@@ -118,13 +105,18 @@ export const fetchProfilePicture = async (profilePictureUrl: string, accessToken
     }
   );
   if (profilePicture.ok) {
-    console.log("Profile picture fetched successfully.");
     const pictureBuffer = await profilePicture.arrayBuffer();
     const pictureBase64 = Buffer.from(pictureBuffer).toString("base64");
     image = `data:image/jpeg;base64,${pictureBase64}`;
-  }
-  else {
-    console.error("Failed to fetch profile picture:", profilePictureUrl, profilePicture.statusText);
+  } else {
+    // The URL is the Graph endpoint and is not sensitive on its own; we
+    // omit response bodies because the photo endpoint can include the
+    // user's display name in error messages.
+    console.error(
+      "Failed to fetch profile picture",
+      profilePicture.status,
+      profilePicture.statusText
+    );
   }
   return image;
 };
