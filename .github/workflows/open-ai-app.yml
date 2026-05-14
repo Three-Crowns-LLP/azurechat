@@ -1,12 +1,15 @@
 name: Build & deploy Next.js app to Azure Web App
 
-# When this action will be executed
+# Manual-only until OIDC secrets and the federated credential are in
+# place on this repo (see Three-Crowns-LLP/EU-Only-LLM-New
+# deployment.md §1–§2). Auto-deploy on push to main was firing on
+# every merge and failing at the Azure Login step because the SP /
+# secrets don't exist yet, which spammed failure emails.
+#
+# Restore the `push:` trigger once OIDC is wired, the federated
+# credential's subject matches refs/heads/main, and a manual
+# `workflow_dispatch` run has completed successfully end-to-end.
 on:
-  # Automatically trigger it when detected changes in repo
-  push:
-    branches: [main]
-
-  # Allow manual workflow trigger
   workflow_dispatch:
 
 permissions:
