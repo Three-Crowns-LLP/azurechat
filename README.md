@@ -9,14 +9,14 @@ A new year brings some much requested feature updates to one of our most popular
 # Unleash the Power of Azure OpenAI
 
 1. [Introduction](#introduction)
-2. [Solution Overview](./docs/1-introduction.md)
-3. [Run from your local machine](./docs/2-run-locally.md)
-4. [Add identity provider](./docs/3-add-identity.md)
-5. [Deploy to Azure](#deploy-to-azure)
-6. [Deploy to Azure with GitHub Actions](./docs/4-deploy-to-azure.md)
-7. [Chatting with your file](./docs/5-chat-over-file.md)
-8. [Persona](./docs/6-persona.md)
-9. [Extensions](./docs/7-extensions.md)
+2. [Architecture (Three Crowns fork)](#architecture)
+3. [Solution Overview](./docs/1-introduction.md)
+4. [Run from your local machine](./docs/2-run-locally.md)
+5. [Add identity provider](./docs/3-add-identity.md)
+6. [Deploy to Azure](#deploy-to-azure)
+7. [Deploy to Azure with GitHub Actions](./docs/4-deploy-to-azure.md)
+8. [Chatting with your file](./docs/5-chat-over-file.md)
+9. [Persona](./docs/6-persona.md)
 10. [Environment variables](./docs/8-environment-variables.md)
 11. [Managed Identity-based deployment](./docs/9-managed-identities.md)
 12. [Migration considerations](./docs/migration.md)
@@ -36,6 +36,133 @@ Benefits are:
 2. **Controlled:** Network traffic can be fully isolated to your network and other enterprise grade authentication security features are built in.
 
 3. **Value:** Deliver added business value with your own internal data sources (plug and play) or integrate with your internal services (e.g., ServiceNow, etc).
+
+# Architecture
+
+This repository is the **Three Crowns LLP fork of
+[`microsoft/azurechat`](https://github.com/microsoft/azurechat)**. It is
+the web-app tier of the firm's **EU-Only-LLM** offering — a third AI
+chatbot tier alongside ChatGPT Enterprise and Claude Enterprise,
+restricted to client matters whose contractual data-protection clauses
+require EU-only processing.
+
+The Azure resources the app runs against are provisioned by a sibling
+repository,
+[`Three-Crowns-LLP/EU-Only-LLM-New`](https://github.com/Three-Crowns-LLP/EU-Only-LLM-New),
+which is the canonical source of truth — read its
+[`PROJECT_CONTEXT.md`](https://github.com/Three-Crowns-LLP/EU-Only-LLM-New/blob/main/PROJECT_CONTEXT.md)
+and
+[`deployment.md`](https://github.com/Three-Crowns-LLP/EU-Only-LLM-New/blob/main/deployment.md)
+first.
+
+## Shape
+
+- **Runtime.** Next.js / Node 20 on Azure App Service Linux (P1v3),
+  VNet-integrated for egress to private endpoints on the backend
+  resources. Single environment: production.
+- **Region.** Sweden Central only. No Global model deployments and no
+  cross-region traffic.
+- **Models (per-chat toggle).**
+  - **GPT-5.4** — Azure AI Services (Cognitive Services) regional
+    deployment.
+  - **Claude Opus 4.6** — Azure AI Foundry serverless endpoint under a
+    Foundry hub and project, called through an OpenAI-compatible
+    adapter (`anthropic-chat.ts`).
+
+  Either model can be hidden from the selector at runtime via the
+  `FEATURE_GPT_ENABLED` / `FEATURE_CLAUDE_ENABLED` app settings,
+  without re-deploying.
+- **Identity.** Entra ID SSO, restricted to the `EU-Only-LLM Access`
+  security group — not tenant-wide. Denied users land on `/no-access`.
+- **Chat history.** Cosmos DB NoSQL, serverless, single-region, with a
+  configurable TTL (default 30 days).
+- **Networking.** VNet + private endpoints for AI Services, the
+  Foundry hub and project, Cosmos, hub Storage and hub Key Vault.
+  Public network access is disabled on every backend resource.
+- **Observability.** App Insights wired via
+  `APPLICATIONINSIGHTS_CONNECTION_STRING`. One `ChatCompletion` custom
+  event per turn carries `model`, `chatThreadId`, prompt / completion /
+  total tokens and latency.
+
+## Request flow
+
+```
+                   ┌─────────────────────────────────────────┐
+                   │  Entra ID — security-group sign-in      │
+                   └────────────────┬────────────────────────┘
+                                    │ OIDC
+                                    ▼
+                   ┌─────────────────────────────────────────┐
+Browser ─────────▶ │  App Service (this repo, Node 20)       │
+                   │   • Per-chat model selector              │
+                   │   • Reads env vars / app settings        │
+                   └────────┬─────────────────┬──────────────┘
+                            │                 │
+              GPT-5.4 path  │                 │  Claude Opus 4.6 path
+                            ▼                 ▼
+              ┌────────────────────┐ ┌────────────────────────┐
+              │ AI Services        │ │ Foundry hub / project  │
+              │ (Cognitive Svcs)   │ │ serverless endpoint    │
+              │ Sweden Central     │ │ Sweden Central         │
+              └─────────┬──────────┘ └───────────┬────────────┘
+                        │                        │
+                        └───────────┬────────────┘
+                                    ▼
+                    ┌──────────────────────────────────┐
+                    │ Cosmos DB NoSQL (chat history)   │
+                    │ Sweden Central, TTL-bounded      │
+                    └──────────────────────────────────┘
+```
+
+All traffic between the App Service and the backend resources stays
+inside the VNet via private endpoints.
+
+## Fork changes against upstream
+
+Functional changes against `microsoft/azurechat`:
+
+1. **Per-chat model selector** — upstream ships with OpenAI models only.
+   The fork adds a toggle so users pick GPT-5.4 *or* Claude Opus 4.6 per
+   conversation and routes to the matching Foundry endpoint. Disabled
+   models are rejected by the backend with a 400.
+2. **Entra security-group gate** — sign-in is restricted to one
+   security group, not the whole tenant; non-members land on a
+   dedicated `/no-access` page.
+3. **Upstream extensions feature disabled** — the dynamic-extension
+   loader (which `JSON.parse`d an admin-authored payload and registered
+   it as an OpenAI tool) is short-circuited to return an empty tool
+   list; extension server actions return `UNAUTHORIZED`; the nav entry
+   is removed. Out of scope for this tier; reintroduction would require
+   an admin-role allowlist and a signed-payload model.
+4. **App Insights telemetry** — one custom `ChatCompletion` event per
+   turn plus per-model latency / token metrics, on top of the codeless
+   auto-collection that ships with Azure App Service.
+5. **OIDC deploy** — `open-ai-app.yml` uses federated identity rather
+   than a long-lived service-principal secret, matching the sibling
+   infra workflow.
+6. **Three Crowns branding and copy.**
+
+Detailed change spec lives in
+[`app/FORK_CHANGES.md`](https://github.com/Three-Crowns-LLP/EU-Only-LLM-New/blob/main/app/FORK_CHANGES.md)
+of the sibling repo, with copy-paste-ready code in `app/snippets/`.
+
+## Configuration
+
+The app reads its endpoints, keys and Entra client details from App
+Service application settings emitted by the sibling repo's Bicep. Key
+env-var groups consumed at runtime:
+
+- `AZURE_OPENAI_API_*` — GPT-5.4 endpoint and access.
+- `AZURE_ANTHROPIC_API_ENDPOINT` / `_KEY` /
+  `_DEPLOYMENT_NAME` — Claude Opus 4.6 serverless endpoint.
+- `AZURE_COSMOSDB_*` — chat-history store.
+- `AZURE_AD_*`, `AZURE_AD_ALLOWED_GROUP_ID`, `NEXTAUTH_*` — Entra SSO
+  and the security-group gate.
+- `FEATURE_GPT_ENABLED`, `FEATURE_CLAUDE_ENABLED` — per-model UI gates.
+- `APPLICATIONINSIGHTS_CONNECTION_STRING` — observability.
+
+See [`docs/8-environment-variables.md`](./docs/8-environment-variables.md)
+for the full upstream list.
 
 # Deploy to Azure
 
