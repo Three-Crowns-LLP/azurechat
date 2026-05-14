@@ -133,6 +133,9 @@ export const fetchProfilePicture = async (profilePictureUrl: string, accessToken
 export const options: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   providers: [...configureIdentityProvider()],
+  pages: {
+    error: "/no-access",
+  },
   callbacks: {
     // EU-Only-LLM tier: restrict Azure AD sign-in to members of a single
     // Entra security group. The App Registration must also be configured
