@@ -1,0 +1,44 @@
+name: Regenerate package-lock.json
+
+# One-shot helper for PR #18. Runs `npm install` against the current
+# src/package.json and commits the regenerated src/package-lock.json
+# back to the same branch. workflow_dispatch only — no auto-trigger,
+# no infinite loop risk. Delete this file in a follow-up commit (or
+# after the PR merges) once the lockfile is in sync.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          # Use the GITHUB_TOKEN persisted by checkout so the push step
+          # can authenticate back to the repo.
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: npm install
+        working-directory: ./src
+        run: npm install --no-audit --no-fund
+
+      - name: Commit lockfile if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet src/package-lock.json; then
+            echo "package-lock.json is already in sync; nothing to commit."
+            exit 0
+          fi
+          git add src/package-lock.json
+          git commit -m "chore: regenerate package-lock.json (next 14.2.35, next-auth 4.24.14)"
+          git push origin HEAD:${{ github.ref_name }}
