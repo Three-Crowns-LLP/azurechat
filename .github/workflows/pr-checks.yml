@@ -1,10 +1,5 @@
 name: PR checks
 
-# Runs on every PR targeting main and on direct pushes to main.
-# Catches lint / type / build failures before they can land in prod —
-# the deploy workflow (open-ai-app.yml) does its own build, but only
-# after merge, by which point a broken build is already on main.
-
 on:
   pull_request:
     branches: [main]
@@ -31,27 +26,63 @@ jobs:
           ls -la src
           test -f src/package-lock.json && echo "lockfile present" || echo "lockfile MISSING"
 
-      # Use `npm install` (not `npm ci`) to match the deploy workflow
-      # and tolerate package.json / package-lock.json drift. PR #12
-      # dropped `next-themes` from package.json without regenerating
-      # the lockfile, which made `npm ci` fail instantly with
-      # "lockfile and package.json don't agree". Tighten to `npm ci`
-      # once the lockfile is kept in sync alongside every package.json
-      # change (will follow once the codebase has a clean rebuild).
       - name: Install
         working-directory: ./src
         run: npm install --no-audit --no-fund
 
       - name: Lint
         working-directory: ./src
-        run: npm run lint
+        run: npm run lint 2>&1 | tee /tmp/lint.log
         continue-on-error: true
 
       - name: Typecheck
         working-directory: ./src
-        run: npx tsc --noEmit
+        run: npx tsc --noEmit 2>&1 | tee /tmp/typecheck.log
         continue-on-error: true
 
+      # Capture full build output to a log file so we can re-print just
+      # the tail on failure. `set -o pipefail` keeps the step failing
+      # when next build does.
       - name: Build
+        id: build
         working-directory: ./src
-        run: npm run build
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee /tmp/build.log
+        continue-on-error: true
+
+      - name: Re-print lint tail
+        if: always() && steps.build.outcome == 'failure'
+        run: |
+          echo "=================================================="
+          echo "Lint output (tail 100 lines)"
+          echo "=================================================="
+          tail -100 /tmp/lint.log || echo "(no lint log)"
+
+      - name: Re-print typecheck tail
+        if: always() && steps.build.outcome == 'failure'
+        run: |
+          echo "=================================================="
+          echo "Typecheck output (tail 100 lines)"
+          echo "=================================================="
+          tail -100 /tmp/typecheck.log || echo "(no typecheck log)"
+
+      - name: Re-print build tail on failure
+        if: always() && steps.build.outcome == 'failure'
+        run: |
+          echo "=================================================="
+          echo "BUILD FAILED — tail 200 lines of build log"
+          echo "=================================================="
+          tail -200 /tmp/build.log
+
+      - name: Upload full logs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-checks-logs
+          path: /tmp/*.log
+          if-no-files-found: warn
+
+      - name: Fail the job if build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
