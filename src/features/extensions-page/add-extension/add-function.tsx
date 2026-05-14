@@ -13,13 +13,11 @@ import { SheetTitle } from "@/features/ui/sheet";
 import { javascript } from "@codemirror/lang-javascript";
 import CodeMirror from "@uiw/react-codemirror";
 import { ChevronDown, ChevronUp, Copy, Plus, Trash } from "lucide-react";
-import { useTheme } from "next-themes";
 import { extensionStore, useExtensionState } from "../extension-store";
 
 export const AddFunction = () => {
   const { extension } = useExtensionState();
 
-  const { theme } = useTheme();
   return (
     <div className="flex gap-4 flex-col bg-foreground/[0.02] border p-4 rounded-md text-sm">
       <div className="flex items-center justify-between">
@@ -114,7 +112,7 @@ export const AddFunction = () => {
                   extensionStore.updateFunctionCode(func.id, value);
                 }}
                 extensions={[javascript()]}
-                theme={theme === "dark" ? "dark" : ("light" as const)}
+                theme={"light" as const}
               />
             </div>
           </div>
